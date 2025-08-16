@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
+from django.core.validators import MinValueValidator, MaxValueValidator
 
 # Create your models here.
 
@@ -10,7 +11,7 @@ class Genre(models.Model):
     name=models.CharField(max_length=100,unique=True)
     
     def __str__(self):
-        return f"Genre: {self.name}"
+        return self.name
 
 
 # Website / app link
@@ -83,7 +84,7 @@ class Review(models.Model):
     object_id=models.PositiveIntegerField()
     content_object = GenericForeignKey('content_type', 'object_id')
     review_text=models.TextField()
-    rating=models.IntegerField()
+    rating=models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(10)])
     is_critic=models.BooleanField(default=False)
     timestamp=models.DateTimeField(auto_now_add=True)
 
@@ -100,22 +101,20 @@ class Movie(models.Model):
     short_synopsis=models.CharField(max_length=500)
     full_synopsis=models.TextField()
     release_date=models.DateField()
-    poster_image=models.ImageField(upload_to='movie_posters/')
-    Backdrop_image=models.ImageField(upload_to='movie_backdrops/')
+    poster_image=models.ImageField(upload_to='movie_posters/',blank=True, null=True)
+    Backdrop_image=models.ImageField(upload_to='movie_backdrops/',blank=True, null=True)
     runtime=models.IntegerField()
     genres=models.ManyToManyField(Genre)
     reviews = GenericRelation(Review)
-    director=models.ManyToManyField(Person, related_name='directed_movies') 
-    cast=models.ManyToManyField(Person,related_name='acted_movies')
     languages=models.ManyToManyField(Language,related_name='movies')
     trailer=models.URLField(blank=True, null=True)
     subtitles=models.ManyToManyField(Language,related_name='movies_subtitles')
-    streaming_platform=models.ManyToManyField(Platform)
+    streaming_platform=models.ManyToManyField(Platform,blank=True,null=True,default='Not streaming.')
     is_active=models.BooleanField(default=True)
 
 
     def __str__(self):
-        return f"Movie: {self.title} ({self.release_date.year if self.release_date else 'N/A'})"
+        return f"{self.title} ({self.release_date.year if self.release_date else 'N/A'})"
 
 
 class WebShow(models.Model):
@@ -126,9 +125,8 @@ class WebShow(models.Model):
     creator=models.ManyToManyField(Person,related_name='created_shows')
     languages=models.ManyToManyField(Language,related_name='shows')
     subtitles=models.ManyToManyField(Language,related_name='shows_subtitles')
-    poster_image=models.ImageField(upload_to='show_posters/')
-    backdrop_image=models.ImageField(upload_to='show_backdrops/')
-  
+    poster_image=models.ImageField(upload_to='show_posters/',blank=True, null=True)
+    backdrop_image=models.ImageField(upload_to='show_backdrops/',blank=True, null=True)
     genres=models.ManyToManyField(Genre)
     is_active=models.BooleanField(default=True)
     trailer=models.URLField(blank=True, null=True)
@@ -178,9 +176,9 @@ class Episode(models.Model):
 
     
 class PersonRole(models.Model):
-    person = models.ForeignKey(Person, on_delete=models.CASCADE)
-    movie = models.ForeignKey(Movie, on_delete=models.CASCADE, null=True, blank=True)
-    webshow = models.ForeignKey(WebShow, on_delete=models.CASCADE, null=True, blank=True)
+    person = models.ForeignKey(Person, on_delete=models.CASCADE,related_name='person_role')
+    movie = models.ForeignKey(Movie, on_delete=models.CASCADE, null=True, blank=True,related_name='movie_role')
+    webshow = models.ForeignKey(WebShow, on_delete=models.CASCADE, null=True, blank=True,related_name="webshow_role")
     role = models.CharField(max_length=20, choices=MovieRole.choices)
     character_name = models.CharField(max_length=100, blank=True, null=True)
     
