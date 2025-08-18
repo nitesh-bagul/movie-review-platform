@@ -121,7 +121,7 @@ class WebShow(models.Model):
     title=models.CharField(max_length=100)
     short_synopsis=models.TextField()
     full_synopsis=models.TextField()
-    number_of_season=models.PositiveIntegerField()
+    seasons_count=models.PositiveIntegerField()
     creator=models.ManyToManyField(Person,related_name='created_shows')
     languages=models.ManyToManyField(Language,related_name='shows')
     subtitles=models.ManyToManyField(Language,related_name='shows_subtitles')
