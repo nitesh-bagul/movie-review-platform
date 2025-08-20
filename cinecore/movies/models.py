@@ -70,7 +70,7 @@ class Language(models.Model):
 
 class Person(models.Model):
     name=models.CharField(max_length=100)
-    profile_pic=models.ImageField(upload_to='person_profiles/', 
+    profile_pic=models.ImageField(upload_to='person_media/person_profiles/', 
                                   blank=True, null=True)
     bio=models.TextField(blank=True,null=True)
     birth_date=models.DateField(blank=True,null=True)
@@ -101,8 +101,8 @@ class Movie(models.Model):
     short_synopsis=models.CharField(max_length=500)
     full_synopsis=models.TextField()
     release_date=models.DateField()
-    poster_image=models.ImageField(upload_to='movie_posters/',blank=True, null=True)
-    Backdrop_image=models.ImageField(upload_to='movie_backdrops/',blank=True, null=True)
+    poster_image=models.ImageField(upload_to='movie_media/movie_posters/',blank=True, null=True)
+    Backdrop_image=models.ImageField(upload_to='movie_media/movie_backdrops/',blank=True, null=True)
     runtime=models.IntegerField()
     genres=models.ManyToManyField(Genre)
     reviews = GenericRelation(Review)
@@ -125,8 +125,8 @@ class WebShow(models.Model):
     creator=models.ManyToManyField(Person,related_name='created_shows')
     languages=models.ManyToManyField(Language,related_name='shows')
     subtitles=models.ManyToManyField(Language,related_name='shows_subtitles')
-    poster_image=models.ImageField(upload_to='show_posters/',blank=True, null=True)
-    backdrop_image=models.ImageField(upload_to='show_backdrops/',blank=True, null=True)
+    poster_image=models.ImageField(upload_to='webshow_media/show_posters/',blank=True, null=True)
+    backdrop_image=models.ImageField(upload_to='webshow_media/show_backdrops/',blank=True, null=True)
     genres=models.ManyToManyField(Genre)
     is_active=models.BooleanField(default=True)
     trailer=models.URLField(blank=True, null=True)
@@ -144,7 +144,7 @@ class WebSeason(models.Model):
     webshow=models.ForeignKey(WebShow,on_delete=models.CASCADE, 
                               related_name='seasons')
     season_number=models.PositiveIntegerField()
-    poster_image=models.ImageField(upload_to='season_posters/', 
+    poster_image=models.ImageField(upload_to='webshow_media/season_posters/', 
                                    blank=True, null=True)
     description=models.TextField(blank=True, null=True)
     total_episodes=models.IntegerField()
@@ -165,7 +165,8 @@ class Episode(models.Model):
     reviews = GenericRelation(Review)
     description=models.TextField()
     release_date=models.DateField()
-    thumbnail_img=models.ImageField(upload_to='episode_thumbnails/')
+    thumbnail_img=models.ImageField(upload_to='webshow_media/episode_thumbnails/',
+                                    blank=True, null=True)
     runtime=models.IntegerField()
     
     class Meta:
@@ -189,3 +190,4 @@ class PersonRole(models.Model):
     def __str__(self):
         content = self.movie.title if self.movie else self.webshow.title
         return f"{self.person.name} - {self.get_role_display()} in {content}"
+

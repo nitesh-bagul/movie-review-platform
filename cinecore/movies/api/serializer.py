@@ -1,17 +1,31 @@
 from rest_framework.serializers import Serializer,ModelSerializer
 from movies.models import (Genre,Platform,Language,PersonRole,
-                           Person,Movie,MovieRole,Review,WebShow)
+                           Person,Movie,MovieRole,Review,WebShow,
+                           WebSeason,Episode)
 from rest_framework import serializers
+from django.contrib.contenttypes.models import ContentType
 class GenreSerializer(ModelSerializer):
     class Meta:
         model=Genre
         fields=['id','name']
 
 class ReviewSerializer(ModelSerializer):
-    user=serializers.StringRelatedField()
+    user = serializers.StringRelatedField(read_only=True)  # Show username or string representation of user
+    content_type = serializers.PrimaryKeyRelatedField(queryset=ContentType.objects.all(), write_only=True)
+    object_id = serializers.IntegerField(write_only=True)
+
     class Meta:
-        model=Review
-        fields=['id', 'user', 'review_text', 'rating', 'is_critic', 'timestamp']
+        model = Review
+        fields = [
+            'id', 'user', 'review_text', 'rating', 'is_critic',
+            'timestamp', 'content_type', 'object_id'
+        ]
+        read_only_fields = ['id', 'user', 'timestamp']
+
+    def create(self, validated_data):
+        user = self.context['request'].user
+        validated_data['user'] = user
+        return super().create(validated_data)
 
 class PlatformSerializer(ModelSerializer):
     class Meta:
@@ -41,10 +55,11 @@ class ActorRoleSerializer(ModelSerializer):
 
 class CrewRoleSerializer(serializers.ModelSerializer):
     person = serializers.StringRelatedField()
+    movie=serializers.StringRelatedField()
 
     class Meta:
         model = PersonRole
-        fields = [ 'id','person', 'role']
+        fields = [ 'id','person', 'role','movie']
 
 class PersonSerializer(ModelSerializer):
     person_role=PersonalRoleSerializer(many=True,read_only=True) 
@@ -52,12 +67,32 @@ class PersonSerializer(ModelSerializer):
         model=Person
         fields=['id', 'name', 'profile_pic', 'bio', 'birth_date', 'person_role']
 
+#Movie Serializer
 
 class MovieListSerializer(ModelSerializer):
     genres=serializers.StringRelatedField(many=True,read_only=True)
     class Meta:
         model=Movie
         fields=['id','title','poster_image','release_date','genres']
+
+class MovieCreateSerializer(ModelSerializer):
+    genres = serializers.PrimaryKeyRelatedField(
+        queryset=Genre.objects.all(),many=True
+        )
+    languages = serializers.PrimaryKeyRelatedField(
+        queryset=Language.objects.all(), many=True
+        )
+    subtitles = serializers.PrimaryKeyRelatedField(
+    queryset=Language.objects.all(), many=True
+        )
+    streaming_platform = serializers.PrimaryKeyRelatedField(
+    queryset=Platform.objects.all(), many=True
+        )
+    class Meta:
+        model=Movie
+        fields=['title','poster_image','release_date','short_synopsis',
+                'full_synopsis','trailer','runtime','genres','languages',
+                'streaming_platform','subtitles']
 
 class MovieDetailSerializer(ModelSerializer):
     genres=serializers.StringRelatedField(many=True,read_only=True)
@@ -89,13 +124,35 @@ class MovieDetailSerializer(ModelSerializer):
         subtitle=obj.subtitles.all()
         return LanguageSerializer(subtitle,many=True).data
 
-
-class ReviewSerializer(ModelSerializer):
-    user=serializers.StringRelatedField(read_only=True)
+class MovieUpdateSerializer(ModelSerializer):
+    genres = serializers.PrimaryKeyRelatedField(
+        queryset=Genre.objects.all(), many=True
+    )
+    languages = serializers.PrimaryKeyRelatedField(
+        queryset=Language.objects.all(), many=True
+    )
+    subtitles = serializers.PrimaryKeyRelatedField(
+    queryset=Language.objects.all(), many=True
+    )
+    streaming_platform = serializers.PrimaryKeyRelatedField(
+    queryset=Platform.objects.all(), many=True
+    )
     class Meta:
-        model=Review
-        fields=['user','review_text','rating','is_critic','timestamp']
+        model=Movie
+        fields=['title','short_synopsis','full_synopsis','release_date',
+                'runtime','genres','languages','is_active','subtitles',
+                'streaming_platform'] 
 
+# class ReviewSerializer(ModelSerializer):
+#     user=serializers.StringRelatedField(read_only=True)
+#     class Meta:
+#         model=Review
+#         fields=['user','review_text','rating','is_critic','timestamp']
+# class MovieCastSerializer(ModelSerializer):
+#     cast=ActorRoleSerializer
+#     class Meta:
+#         model=Movie
+#         fields
 
 #WebShow Serializer
 
@@ -151,4 +208,50 @@ class WebShowDetailSerializer(ModelSerializer):
     def get_writer(self,obj):
         role=obj.webshow_role.filter(role=MovieRole.WRITER)
         return CrewRoleSerializer(role,many=True).data
-             
+
+class WebSeasonListSerializer(ModelSerializer):
+    webshow=WebShowListSerializer(read_only=True)
+    class Meta:
+        model=WebSeason
+        fields=['id','webshow','season_number','poster_image']
+
+
+class WebSeasonDetailSerializer(ModelSerializer):
+    webshow=WebShowListSerializer(read_only=True)
+    reviews=ReviewSerializer(many=True,read_only=True)
+    class Meta:
+        model=WebSeason
+        fields=['id','webshow','season_number','poster_image',
+                'description','total_episodes','release_date',
+                'reviews']
+
+
+class WebSeasonCreateUpdateSerializer(ModelSerializer):
+    # webshow=serializers.PrimaryKeyRelatedField(queryset=WebShow.objects.all())
+    class Meta:
+        model=WebSeason
+        fields=['id','season_number','description','poster_image','total_episodes',
+                'release_date']
+
+class WebSeasonEpisodeListSerializer(ModelSerializer):
+    class Meta:
+        model=Episode
+        fields=['id','title','episode_number','release_date','thumbnail_img',
+                'runtime']
+
+class WebShowEpisodeDetailSerializer(ModelSerializer):
+    reviews=ReviewSerializer(many=True,read_only=True)
+    season=WebSeasonListSerializer(read_only=True)
+    class Meta:
+        model=Episode
+        fields=['id','season','title','episode_number','description','release_date','thumbnail_img',
+                'runtime','reviews']
+
+
+class EpisodeCreateUpdateSerializer(ModelSerializer):
+    class Meta:
+        model=Episode
+        fields=['episode_number','title','description','release_date','thumbnail_img',
+                'runtime']
+
+
