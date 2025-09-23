@@ -17,7 +17,7 @@ class Genre(models.Model):
 # Website / app link
 class Platform(models.Model):
     name=models.CharField(max_length=100)
-    logo_image=models.ImageField(upload_to='platform_logos/', 
+    logo_image=models.ImageField(upload_to='movie_media/platform_logos/', 
                                  blank=True, null=True)
     website_link=models.URLField(blank=True, null=True)
     
@@ -70,7 +70,7 @@ class Language(models.Model):
 
 class Person(models.Model):
     name=models.CharField(max_length=100)
-    profile_pic=models.ImageField(upload_to='person_media/person_profiles/', 
+    profile_pic=models.ImageField(upload_to='movie_media/person_profiles/', 
                                   blank=True, null=True)
     bio=models.TextField(blank=True,null=True)
     birth_date=models.DateField(blank=True,null=True)
@@ -79,22 +79,32 @@ class Person(models.Model):
         return self.name
 
 class Review(models.Model):
-    user=models.ForeignKey(User,on_delete=models.CASCADE)
+    review_user=models.ForeignKey(User,on_delete=models.CASCADE)
     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
     object_id=models.PositiveIntegerField()
     content_object = GenericForeignKey('content_type', 'object_id')
     review_text=models.TextField()
-    rating=models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(10)])
+    rating=models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
     is_critic=models.BooleanField(default=False)
     timestamp=models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ('user', 'content_type', 'object_id') 
+        unique_together = ('review_user', 'content_type', 'object_id') 
     
     def __str__(self):
-        return f"Review by {self.user.username} - {self.rating}/10"
+        return f"Review by {self.review_user.username} - {self.rating}/5"
     
+class ReviewLike(models.Model):
+    
+    like_user = models.ForeignKey(User, on_delete=models.CASCADE)
+    review = models.ForeignKey(Review, on_delete=models.CASCADE, related_name="likes")
+    created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        unique_together = ("like_user", "review") 
+    
+    def __str__(self):
+        return f"{self.like_user.username} liked {self.review.review_user.username}'s Review {self.review.content_type}"
 
 class Movie(models.Model):
     title=models.CharField(max_length=100)
@@ -102,7 +112,7 @@ class Movie(models.Model):
     full_synopsis=models.TextField()
     release_date=models.DateField()
     poster_image=models.ImageField(upload_to='movie_media/movie_posters/',blank=True, null=True)
-    Backdrop_image=models.ImageField(upload_to='movie_media/movie_backdrops/',blank=True, null=True)
+    backdrop_image=models.ImageField(upload_to='movie_media/movie_backdrops/',blank=True, null=True)
     runtime=models.IntegerField()
     genres=models.ManyToManyField(Genre)
     reviews = GenericRelation(Review)
@@ -116,6 +126,86 @@ class Movie(models.Model):
     def __str__(self):
         return f"{self.title} ({self.release_date.year if self.release_date else 'N/A'})"
 
+class MovieTrivia(models.Model):
+    movie = models.ForeignKey(Movie, on_delete=models.CASCADE, related_name="trivia")
+    fact = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"Trivia for {self.movie.title}: {self.fact[:50]}..."
+
+class GalleryImage(models.Model):
+    movie = models.ForeignKey(Movie, on_delete=models.CASCADE, related_name="gallery")
+    image_url = models.URLField()
+    caption = models.CharField(max_length=255, blank=True, null=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    
+    
+    def __str__(self):
+        return f"Image for {self.movie.title} - {self.caption or 'No caption'}"
+
+class BoxOffice(models.Model):
+    movie = models.OneToOneField(Movie, on_delete=models.CASCADE, related_name="boxoffice")
+    budget = models.BigIntegerField()
+    worldwide_gross = models.BigIntegerField()
+    opening_weekend = models.BigIntegerField()
+    currency = models.CharField(max_length=10, default="USD")
+    
+    def __str__(self):
+        return f"Box Office ({self.movie.title}): {self.currency} {self.worldwide_gross:,}"
+
+class Award(models.Model):
+    movie = models.ForeignKey(Movie, on_delete=models.CASCADE, related_name="awards")
+    name = models.CharField(max_length=255)
+    category = models.CharField(max_length=255)
+    year = models.IntegerField()
+    won = models.BooleanField(default=False)
+    
+    def __str__(self):
+        status = "Won" if self.won else "Nominated"
+        return f"{self.movie.title} - {self.name} ({self.category}, {self.year}) [{status}]"
+
+class FanTheory(models.Model):
+    movie = models.ForeignKey(Movie, on_delete=models.CASCADE, related_name="fantheories")
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    theory = models.TextField(max_length=200)
+    upvotes = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"Theory by {self.user.username} on {self.movie.title} ({self.upvotes} upvotes)"
+
+class FanTheoryVote(models.Model):
+    theory = models.ForeignKey(FanTheory, related_name='votes', on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    points = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        unique_together = ('theory', 'user') 
+
+class Poll(models.Model):
+    movie = models.ForeignKey(Movie, on_delete=models.CASCADE, related_name="polls")
+    question = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"Poll for {self.movie.title}: {self.question}"
+
+class PollOption(models.Model):
+    poll = models.ForeignKey(Poll, on_delete=models.CASCADE, related_name="options")
+    option_text = models.CharField(max_length=255)
+    votes = models.IntegerField(default=0)
+    
+    def __str__(self):
+        return f"Option: {self.option_text} ({self.votes} votes)"
+
+class PollVote(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    poll = models.ForeignKey(Poll, on_delete=models.CASCADE, related_name="votes")
+    option = models.ForeignKey(PollOption, on_delete=models.CASCADE)
+
+    class Meta:
+        unique_together = ('user', 'poll')
 
 class WebShow(models.Model):
     title=models.CharField(max_length=100)
