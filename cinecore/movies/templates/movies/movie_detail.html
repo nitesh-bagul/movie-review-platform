@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Movie Details - CineConnect{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'movies/movie.css' %}">
+{% endblock %}
+
+{% block content %}
+
+
+  <section class="hero" id="hero">
+    <div class="overlay"></div>
+    <div class="hero-inner">
+      <div class="poster-box">
+        <img id="movie-poster" src="" alt="Movie Poster" loading="lazy">
+      </div>
+      <div class="hero-content">
+        <h1 id="movie-title">Loading...</h1>
+        <p id="movie-tagline"></p>
+        <div id="movie-tags" class="tags"></div>
+        <div class="buttons">
+          <button class="btn primary">▶ Watch Trailer</button>
+          <button class="btn">➕ Add to Watchlist</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <section class="synopsis">
+    <h2>Synopsis & Details</h2>
+    <p id="movie-description">Loading...</p>
+    <div class="lang-sub">
+      <div>
+        <h3>Languages</h3>
+        <div id="languages" class="tag-list"></div>
+      </div>
+      <div>
+        <h3>Subtitle Availability</h3>
+        <div id="subtitles" class="tag-list"></div>
+      </div>
+    </div>
+  </section>
+
+ 
+  <section class="cast">
+    <h2>Director & Cast</h2>
+    <p id="directors"></p>
+    <div id="cast-list" class="cast-grid"></div>
+  </section>
+
+  <!-- Trailer -->
+  <section class="trailer">
+    <h2>Official Trailer</h2>
+    <div class="trailer-box">
+      <iframe id="trailer-frame" width="100%" height="400" src="" frameborder="0" allowfullscreen></iframe>
+    </div>
+    <p id="release-date" class="release-date"></p>
+  </section>
+
+  
+  <section class="streaming">
+    <h2>Streaming On</h2>
+    <div id="streaming-platforms" class="platforms"></div>
+  </section>
+
+{% endblock %}
+
+{% block extra_scripts %}
+{{ block.super }}
+<script defer>
+  async function loadMovie() {
+    try {
+      const response = await fetch("http://127.0.0.1:8000/api/movies/{{ movie_id }}/");
+      console.log("➡️ API status:", response.status);
+
+      const movie = await response.json();
+      console.log("🎬 Movie data:", movie);
+
+     
+      document.getElementById("movie-title").innerText = movie.title || "Untitled";
+      document.getElementById("movie-tagline").innerText = movie.short_synopsis || "";
+
+    
+      const heroEl = document.getElementById("hero");
+      if (movie.backdrop_image) {
+        heroEl.style.backgroundImage = `url("${movie.backdrop_image}")`;
+      } else if (movie.poster_image) {
+        heroEl.style.backgroundImage = `url("${movie.poster_image}")`;
+      }
+
+    
+      if (movie.poster_image) {
+      let posterUrl = movie.poster_image;
+      if (!posterUrl.startsWith("http")) {
+        posterUrl = `http://127.0.0.1:8000${posterUrl}`;
+      }
+      document.getElementById("movie-poster").src = posterUrl;
+    }
+
+      
+      document.getElementById("movie-tags").innerHTML = `
+        <span>${movie.runtime || ""} min</span>
+        <span>${movie.release_date ? new Date(movie.release_date).getFullYear() : ""}</span>
+        ${(movie.genres || []).map(g => `<span>${g}</span>`).join('')}
+      `;
+
+     
+      document.getElementById("movie-description").innerText = movie.full_synopsis || "";
+
+    
+      document.getElementById("languages").innerHTML =
+        (movie.languages || []).map(l => `<span>${l.name}</span>`).join('');
+
+     
+      document.getElementById("subtitles").innerHTML =
+        (movie.subtitles || []).map(s => `<span>${s.name}</span>`).join('');
+
+     
+      const directorNames = (movie.directors || []).map(d => d.person || "Unknown").join(", ");
+      document.getElementById("directors").innerText = directorNames ? "Directed by: " + directorNames : "";
+
+    
+      const castDiv = document.getElementById("cast-list");
+      castDiv.innerHTML = (movie.cast || []).map(c => {
+        let imgUrl = c.person_image;
+        if (imgUrl && !imgUrl.startsWith("http")) {
+          imgUrl = `http://127.0.0.1:8000${imgUrl}`;
+        }
+        return `
+          <div class="cast-card">
+            <img src="${imgUrl}" alt="${c.person}" loading="lazy">
+            <p><strong>${c.person || "Unknown"}</strong></p>
+            <p class="character">as ${c.character_name || ""}</p>
+          </div>
+        `;
+      }).join("");
+
+      
+      if (movie.trailer) {
+        let embedUrl = movie.trailer;
+        if (embedUrl.includes("youtu.be")) {
+          const videoId = embedUrl.split("youtu.be/")[1].split("?")[0];
+          embedUrl = `https://www.youtube.com/embed/${videoId}`;
+        }
+        if (embedUrl.includes("watch?v=")) {
+          const videoId = embedUrl.split("watch?v=")[1].split("&")[0];
+          embedUrl = `https://www.youtube.com/embed/${videoId}`;
+        }
+        document.getElementById("trailer-frame").src = embedUrl;
+      }
+
+      
+      document.getElementById("streaming-platforms").innerHTML =
+        (movie.streaming_platform || []).map(p => `
+          <a href="${p.website_link}" target="_blank" class="platform">
+            ${p.logo_image ? `<img src="${p.logo_image}" alt="${p.name}">` : p.name}
+          </a>
+        `).join('');
+
+      
+      if (movie.release_date) {
+        const date = new Date(movie.release_date);
+        document.getElementById("release-date").innerText =
+          "Release Date: " + date.toLocaleDateString("en-US", { year: 'numeric', month: 'long', day: 'numeric' });
+      }
+
+    } catch (err) {
+      console.error("❌ Error loading movie:", err);
+    }
+  }
+
+  loadMovie();
+</script>
+{% endblock %}

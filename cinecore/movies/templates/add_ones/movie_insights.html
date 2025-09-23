@@ -1,0 +1,350 @@
+{% extends "base.html" %}
+{% load static %}
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'add_ones/movie_insights.css' %}">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+{% block content %}
+<div class="insights-section">
+    <h1 class="page-title">Unique Add-ons: <span id="movie-title">Movie Title</span></h1>
+    <p class="page-desc">Delve deeper into the world of <span id="movie-title-desc">Movie Title</span> with exclusive content, fan theories, and behind-the-scenes insights.</p>
+    <div class="button-group">
+        <button onclick="window.location.href='/movies/{{movie_id}}/'" class="nav-btn">Back to Movie Details</button>
+        <button onclick="window.location.href='/movies/{{movie_id}}/reviews/'" class="nav-btn">View Reviews</button>
+    </div>
+
+    <div class="tabs">
+        <button class="tab active" onclick="switchTab('overview')">Overview</button>
+        <button class="tab" onclick="switchTab('awards')">Awards & Nominations</button>
+    </div>
+    <div id="overview-panel" class="tab-panel active">
+        <!-- Trivia -->
+        <section class="trivia-card">
+            <h2 class="section-title">Trivia & Fun Facts</h2>
+            <ul id="trivia-list"></ul>
+        </section>
+        <!-- Gallery -->
+        <section class="gallery-card">
+            <h2 class="section-title">Behind-the-Scenes Gallery</h2>
+            <div id="gallery-grid" class="gallery-grid"></div>
+        </section>
+        <!-- Box Office Chart -->
+        <section class="boxoffice-card">
+            <h2 class="section-title">Box Office Statistics</h2>
+            <canvas id="boxofficeChart" height="110"></canvas>
+            <div class="boxoffice-table">
+                <div class="box-label">Budget</div>
+                <div class="box-value" id="budget-value">$-</div>
+                <div class="box-label">Worldwide Gross</div>
+                <div class="box-value" id="gross-value">$-</div>
+            </div>
+        </section>
+        <!-- Fan Theory & Poll -->
+        <div class="bottom-grid">
+            <section class="fan-theory-card">
+                <h2 class="section-title">Fan Theories</h2>
+                <input id="theory-input" type="text" placeholder="Share your theory...">
+                <button id="add-theory-btn" class="action-btn">Add Theory</button>
+                <ul id="theory-list"></ul>
+            </section>
+            <div id="poll-section">
+            <section class="poll-card">
+                <h2 class="section-title">Interactive Poll</h2>
+                <form id="poll-form">
+                    <div id="poll-question"></div>
+                    <div id="poll-options"></div>
+                    <button type="submit" class="action-btn">Submit Vote</button>
+                </form>
+            </section>
+            </div>
+        </div>
+        <!-- Related Movies -->
+        <section class="related-movies-card">
+            <h2 class="section-title">Related Movies You Might Like</h2>
+            <div id="related-movies-grid" class="related-grid"></div>
+        </section>
+    </div>
+    <!-- Awards Tab -->
+    <div id="awards-panel" class="tab-panel">
+        <section class="awards-card">
+            <h2 class="section-title">Awards & Nominations</h2>
+            <div id="awards-grid" class="awards-grid">
+                <div class="loading-msg">Loading...</div>
+            </div>
+        </section>
+    </div>
+
+  
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+    
+        const movieId = {{ movie_id|default:1 }};
+        console.log(movieId)
+        const token = localStorage.getItem('access');
+    
+        // Redirect to login if JWT is missing
+        if (!token) {
+            alert("Please log in first!");
+            window.location.href = '/login/';
+            return;
+        }
+    
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+            document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add('active');
+            document.getElementById(tab+'-panel').classList.add('active');
+        }
+        window.switchTab = switchTab;
+    
+       
+        fetch(`/api/movies/${movieId}/`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        })
+        .then(r => r.json())
+        .then(movie => {
+            document.getElementById('movie-title').textContent = movie.title;
+            document.getElementById('movie-title-desc').textContent = movie.title;
+        });
+    
+        
+        fetch(`/api/movies/${movieId}/trivia/`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        })
+        .then(res => res.json())
+        .then(trivia => {
+            const ul = document.getElementById('trivia-list');
+            ul.innerHTML = '';
+            trivia.forEach(f => {
+                let li = document.createElement('li');
+                li.textContent = f.fact;
+                ul.appendChild(li);
+            });
+        });
+    
+      
+        fetch(`/api/movies/${movieId}/gallery/`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        })
+        .then(res => res.json())
+        .then(images => {
+            const grid = document.getElementById('gallery-grid');
+            grid.innerHTML = '';
+            images.slice(0,6).forEach(img => {
+                grid.innerHTML += `<div class="gallery-img-card"><img src="${img.image_url}" alt="Behind the scenes"><div class="caption">${img.caption}</div></div>`;
+            });
+        });
+    
+        
+        fetch(`/api/movies/${movieId}/boxoffice/`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if(data.length) {
+                let box = data[0];
+                document.getElementById('budget-value').textContent = '$'+box.budget;
+                document.getElementById('gross-value').textContent = '$'+box.worldwide_gross;
+                const ctx = document.getElementById('boxofficeChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Budget','Worldwide Gross'],
+                        datasets: [{label: 'Earnings', data: [box.budget, box.worldwide_gross], backgroundColor:['#1e88e5','#ffa726']}]
+                    },
+                    options: {
+                        plugins: { legend: { display: false } },
+                        scales: { y: { beginAtZero: true } }
+                    }
+                });
+            }
+        });
+    
+        
+        function loadTheories() {
+            fetch(`/api/movies/${movieId}/fantheories/`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
+            .then(res => res.json())
+            .then(list => {
+                const ul = document.getElementById('theory-list');
+                ul.innerHTML = '';
+                list.forEach(t => {
+                    let li = document.createElement('li');
+                    li.innerHTML = `
+                        ${t.theory} 
+                        <button class="upvote-btn" onclick="upvoteTheory(${t.id}, this)">+${t.upvotes}</button>
+                    `;
+                    ul.appendChild(li);
+                });
+            });
+        }
+        loadTheories();
+    
+        document.getElementById('add-theory-btn').onclick = () => {
+            let text = document.getElementById('theory-input').value.trim();
+            if(!text) return;
+    
+            fetch(`/api/movies/${movieId}/fantheories/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ theory: text })
+            })
+            .then(res => {
+                if (!res.ok) return res.json().then(err => { throw err; });
+                return res.json();
+            })
+            .then(() => {
+                document.getElementById('theory-input').value = '';
+                loadTheories();
+            })
+            .catch(error => {
+                console.error("Failed to add fan theory:", error);
+                alert("Could not add fan theory. Please try again.");
+            });
+        };
+    
+       
+        window.upvoteTheory = function(id, btn) {
+            fetch(`/api/movies/${movieId}/fantheories/${id}/upvote/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({})
+            })
+            .then(res => res.json())
+            .then(data => {
+                btn.textContent = `+${data.upvotes}`;
+            })
+            .catch(error => {
+                console.error("Failed to upvote theory:", error);
+                alert("Could not upvote. Please try again.");
+            });
+        };
+    
+      
+    fetch(`/api/movies/${movieId}/polls/`, {
+    headers: { 'Authorization': `Bearer ${token}` }
+    })
+.then(res => res.json())
+.then(list => {
+    if(list.length) {
+        const poll = list[0];
+        console.log("Poll object:", poll); 
+        console.log("Poll ID:", poll.id);  
+        const form = document.getElementById('poll-form');
+        form.dataset.pollId = poll.id; 
+
+        document.getElementById('poll-question').textContent = poll.question;
+        const opts = document.getElementById('poll-options');
+        opts.innerHTML = '';
+        poll.options.forEach(opt => {
+            opts.innerHTML += `
+            <label>
+                <input type="radio" name="poll_option" value="${opt.id}"> ${opt.option_text} (${opt.votes})
+            </label><br>`;
+        });
+    } else {
+        document.getElementById('poll-section').innerHTML = "<p>No active polls.</p>";
+    }
+})
+.catch(err => console.error("Failed to load poll:", err));
+
+
+document.getElementById('poll-form').onsubmit = function(e) {
+    e.preventDefault();
+    const selected = this.querySelector('input[name="poll_option"]:checked');
+    if(!selected) {
+        alert("Please select an option.");
+        return;
+    }
+
+    const pollId = this.dataset.pollId;
+    console.log("Submitting vote for poll ID:", pollId);
+    fetch(`/api/movies/${movieId}/polls/${pollId}/vote/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ option_id: selected.value })
+    })
+    .then(res => res.json())
+    .then(resp => {
+        
+        selected.parentElement.innerHTML = selected.parentElement.innerHTML.replace(/\(\d+\)/, `(${resp.votes})`);
+    })
+    .catch(err => {
+        console.error("Failed to submit vote:", err);
+        alert("Could not submit vote. Please try again.");
+    });
+};
+
+
+
+
+
+        
+        fetch(`/api/movies/${movieId}/related/`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        })
+        .then(r => r.json())
+        .then(list => {
+            const grid = document.getElementById('related-movies-grid');
+            grid.innerHTML = '';
+            list.slice(0,4).forEach(m => {
+                grid.innerHTML += `
+                    <div class="related-card">
+                        <img src="${m.poster_image || '/static/images/default-poster.png'}" alt="${m.title}">
+                        <div class="related-movie-title">${m.title}</div>
+                        <div class="related-movie-meta">${m.genres.join(', ')}</div>
+                    </div>
+                `;
+            });
+        });
+
+       
+        fetch(`/api/movies/${movieId}/awards/`, {
+    headers: { 'Authorization': `Bearer ${token}` }
+})
+.then(r => r.json())
+.then(list => {
+    const grid = document.getElementById('awards-grid');
+    grid.innerHTML = '';
+    
+    if (!Array.isArray(list) || list.length === 0) {
+    grid.innerHTML = '<div class="loading-msg">No awards or nominations yet.</div>';
+    }
+     
+    else {
+        list.forEach(a => {
+            grid.innerHTML += `
+                <div class="award-item ${a.won ? 'won' : 'nominated'}">
+                    <div class="award-name">${a.name}</div>
+                    <div class="award-meta">${a.category} • ${a.year}</div>
+                    <div class="award-status ${a.won ? 'won' : 'nominated'}">
+                        ${a.won ? '🏆 Won' : '🎬 Nominated'}
+                    </div>
+                </div>
+            `;
+        });
+    }
+})
+.catch(err => {
+    console.error("Failed to load awards:", err);
+    document.getElementById('awards-grid').innerHTML = 
+        '<div class="loading-msg">Error loading awards.</div>';
+});
+
+    
+    });
+</script>
+{% endblock %}
+    

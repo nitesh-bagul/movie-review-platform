@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  {% load static %}
+  <meta charset="UTF-8">
+  <title>{% block title %}CineConnect{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'base.css' %}">
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+  <header class="navbar">
+    <div class="logo">
+      <a href="{% url 'home' %}">CineConnect</a>
+    </div>
+
+    <nav class="nav-links">
+      {% if movie_id %}
+      <a href="{% url 'movie_page' %}">Movies</a>
+      <a href="{% url 'movie_detail' movie_id %}">Movie-Detail</a>
+      <a href="{% url 'review_detail' movie_id %}">Reviews</a>
+      <a href="{% url 'movie_insights' movie_id %}">Add-ons</a>
+      {% endif %}
+    </nav>
+
+    <div class="nav-right">
+      <div class="search-bar">
+        <input type="text" id="search-input" placeholder="Search movies...">
+        <button type="button" id="search-btn">Search</button>
+      </div>
+
+     
+      <div class="auth-links" id="auth-links">
+        <a href="/login/">Login</a>
+        <span class="signup-text"><a href="{% url 'register' %}">Sign Up</a></span>
+      </div>
+
+   
+      <div class="profile-menu hidden" id="profile-links">
+        <div class="profile-avatar" id="profile-toggle">
+          👤 <span id="profile-username"></span>
+        </div>
+        <div class="dropdown hidden" id="profile-dropdown">
+          <a href="#" id="logout-btn">Logout</a>
+        </div>
+      </div>
+    </div>  
+  </header>
+
+  
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+
+  {% block extra_scripts %}
+<script>
+  
+  function isTokenExpired(token) {
+    if (!token) return true;
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      const expiry = payload.exp * 1000;
+      return Date.now() > expiry;
+    } catch (e) {
+      return true;
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    const authLinks = document.getElementById("auth-links");
+    const profileLinks = document.getElementById("profile-links");
+    const profileUsername = document.getElementById("profile-username");
+    const profileToggle = document.getElementById("profile-toggle");
+    const dropdown = document.getElementById("profile-dropdown");
+
+    const access = localStorage.getItem("access");
+    const username = localStorage.getItem("username");
+
+    
+    if (access && !isTokenExpired(access)) {
+      authLinks.style.display = "none";
+      profileLinks.classList.remove("hidden");
+      profileUsername.textContent = username ? username : "User";
+    } else {
+      localStorage.removeItem("access");
+      localStorage.removeItem("refresh");
+      localStorage.removeItem("username");
+      authLinks.style.display = "block";
+      profileLinks.classList.add("hidden");
+    }
+
+    
+    profileToggle?.addEventListener("click", () => {
+      dropdown.classList.toggle("hidden");
+    });
+
+  
+    document.getElementById("logout-btn")?.addEventListener("click", (e) => {
+      e.preventDefault();
+      localStorage.removeItem("access");
+      localStorage.removeItem("refresh");
+      localStorage.removeItem("username");
+      window.location.href = "";
+    });
+
+   
+    setInterval(() => {
+      const token = localStorage.getItem("access");
+      if (isTokenExpired(token)) {
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        localStorage.removeItem("username");
+        window.location.href = "";
+      }
+    }, 60 * 1000);
+
+   
+    const searchBtn = document.getElementById("search-btn");
+    const searchInput = document.getElementById("search-input");
+
+    if (searchBtn) {
+      searchBtn.addEventListener("click", () => {
+        const query = searchInput.value.trim();
+        if (!query) return;
+
+        fetch(`/api/movies/?search=${encodeURIComponent(query)}`)
+          .then(res => res.json())
+          .then(data => {
+            localStorage.setItem("searchResults", JSON.stringify(data));
+            window.location.href = "/movies/"; 
+          })
+          .catch(err => console.error("Search error:", err));
+      });
+    }
+  });
+</script>
+{% endblock %}
+</body>
+</html>

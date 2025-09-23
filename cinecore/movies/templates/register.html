@@ -1,0 +1,121 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Sign Up - Movie App</title>
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+    <style>
+        body {
+            font-family: Arial;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: #f2f2f2;
+        }
+        .signup-container {
+            background: #fff;
+            padding: 20px 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            width: 320px;
+            text-align: center;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            margin: 10px 0;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            background: #43a047;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #2e7d32;
+        }
+        .error {
+            color: red;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        .login-text {
+            margin-top: 15px;
+            font-size: 14px;
+        }
+        .login-text a {
+            color: #1e88e5;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        .login-text a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="signup-container">
+        <h2>Create Account</h2>
+        <form id="signup-form">
+            <input type="text" id="username" placeholder="Username" required>
+            <input type="email" id="email" placeholder="Email" required>
+            <input type="password" id="password" placeholder="Password" required>
+            <input type="password" id="confirm-password" placeholder="Confirm Password" required>
+            <button type="submit">Sign Up</button>
+        </form>
+
+       
+        <div class="login-text">
+            Already have an account? <a href="/login/">Login</a>
+        </div>
+
+        <div class="error" id="error-msg"></div>
+    </div>
+
+    <script>
+        document.getElementById('signup-form').onsubmit = function(e) {
+            e.preventDefault();
+
+            const username = document.getElementById('username').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value.trim();
+            const confirmPassword = document.getElementById('confirm-password').value.trim();
+            const errorMsg = document.getElementById('error-msg');
+
+            if (password !== confirmPassword) {
+                errorMsg.textContent = "Passwords do not match!";
+                return;
+            }
+
+            fetch('/account/register/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    username: username,
+                    email: email,
+                    password: password,
+                    password2: confirmPassword 
+                 })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.response === "Registration sucessfull") {
+                    alert("Signup successful! Please login.");
+                    window.location.href = "/login/";
+                } else {
+                    errorMsg.textContent = JSON.stringify(data);
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                errorMsg.textContent = "Server error. Try again!";
+            });
+        }
+    </script>
+</body>
+</html>

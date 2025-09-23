@@ -1,0 +1,333 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}CineConnect{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'reviews/reviews.css' %}">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+    <h1 ><span id="movie-title"></span> Reviews</h1>
+  
+    <section class="score-summary">
+        <div class="score-card" id="critic-score">
+            <h3>Critic Score</h3>
+            <p class="score-value">-</p>
+            <p class="score-count">0 Reviews</p>
+        </div>
+        <div class="score-card" id="audience-score">
+            <h3>Audience Score</h3>
+            <p class="score-value">-</p>
+            <p class="score-count">0 Reviews</p>
+        </div>
+        <div class="score-card">
+            <h3>Overall Sentiment</h3>
+            <canvas id="sentimentChart"></canvas>
+        </div>
+    </section>
+
+
+    <div class="write-review">
+        <button id="openReviewModal" class="review-btn">✍️ Write a Review</button>
+    </div>
+    <div id="reviewModal" class="modal hidden">
+        <div class="modal-content">
+          <span class="close">&times;</span>
+          <div class="movie-header">
+            <img id="modalPoster" src="" alt="Movie Poster" />
+            <div>
+              <h2 id="modalTitle"></h2>
+              <p id="modalYear"></p>
+            </div>
+          </div>
+      
+          <form id="reviewForm">
+            <textarea id="reviewText" placeholder="Write your review..." required></textarea>
+            
+            <div class="rating">
+              <label>Rating:</label>
+              <select id="rating" required>
+                <option value="">-- Select --</option>
+                <option value="1">⭐</option>
+                <option value="2">⭐⭐</option>
+                <option value="3">⭐⭐⭐</option>
+                <option value="4">⭐⭐⭐⭐</option>
+                <option value="5">⭐⭐⭐⭐⭐</option>
+              </select>
+            </div>
+      
+            <label>
+              <input type="checkbox" id="isCritic"> Post as Critic
+            </label>
+      
+            <button type="submit">Save</button>
+          </form>
+        </div>
+      </div>
+      
+
+   
+    <section class="review-trends">
+        <h2>Review Trends Over Time</h2>
+        <canvas id="trendsChart"></canvas>
+    </section>
+
+    
+    <section class="reviews-section">
+        <h2>Latest Reviews</h2>
+        <div id="latest-reviews" class="reviews-grid"></div>
+    </section>
+
+  
+    <section class="reviews-section">
+        <h2>Popular Reviews</h2>
+        <div id="popular-reviews" class="reviews-grid"></div>
+    </section>
+
+  
+    <script>
+        const movieId = {{ movie_id|default:1 }};
+        const baseUrl = `/api/movies/${movieId}/reviews/`;
+        console.log("Movie ID from template:", movieId);
+
+        const token = localStorage.getItem("access");
+                fetch(`/api/movies/${movieId}/`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                })
+                .then(r => r.json())
+                .then(movie => {
+                    console.log('name',movie.title)
+                    document.getElementById('movie-title').textContent = movie.title;
+                    
+                });
+        
+        
+        // Render Reviews
+        function renderReviews(containerId, reviews) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = ""; 
+            reviews.forEach(r => {
+                const card = document.createElement("div");
+                card.className = "review-card";
+                card.innerHTML = `
+                    <h3>${r.review_user}</h3>
+                    <p class="rating">⭐ ${r.rating}/5</p>
+                    <p>${r.review_text}</p>
+                    <small>${new Date(r.timestamp).toLocaleDateString()}</small>
+                    <button class="like-btn" data-id="${r.id}">
+                       👍 <span id="like-count-${r.id}">${r.likes_count || 0}</span>
+                    </button>
+                `;
+                container.appendChild(card);
+
+                // Like functionality
+                
+                card.querySelector(".like-btn").addEventListener("click", function () {
+                    const btn = this;
+                    const reviewId = r.id;
+                    fetch(`http://127.0.0.1:8000/api/reviews/${reviewId}/like/`, {
+                        method: "POST",
+                        headers: { "Authorization": `Bearer ${token}`, 
+                                   "Content-Type": "application/json" },
+                        body: JSON.stringify({}) 
+                    })
+                    .then(res => {
+                        if (res.status === 401) {
+                            alert("Please login to like reviews.");
+                            window.location.href = "/login/";
+                            return;
+                        }
+                        return res.json();
+                    })
+                    .then(resp => {
+                        if (!resp) return; 
+                        let countEl = document.getElementById("like-count-" + reviewId);
+                        let current = parseInt(countEl.textContent);
+                        if (resp.detail === "Unliked") {
+                            countEl.textContent = current - 1;
+                            btn.classList.remove("liked");
+                        } else if (resp.detail === "Liked successfully") {
+                            countEl.textContent = current + 1;
+                            btn.classList.add("liked");
+                        }
+                    });
+                });
+            });
+        }
+
+      
+        function renderPagination(containerId, data, loadPageFn) {
+            const container = document.getElementById(containerId);
+            const paginationDiv = document.createElement("div");
+            paginationDiv.className = "pagination";
+
+            if (data.previous) {
+                const prevBtn = document.createElement("button");
+                prevBtn.textContent = "⬅ Prev";
+                prevBtn.onclick = () => {
+                    const urlParams = new URL(data.previous).searchParams;
+                    const page = urlParams.get("page") || 1;
+                    loadPageFn(page);
+                };
+                paginationDiv.appendChild(prevBtn);
+            }
+
+            const pageInfo = document.createElement("span");
+            pageInfo.textContent = `Page ${getPageFromUrl(data.next, data.previous)} of ${Math.ceil(data.count / data.results.length)}`;
+            paginationDiv.appendChild(pageInfo);
+
+            if (data.next) {
+                const nextBtn = document.createElement("button");
+                nextBtn.textContent = "Next ➡";
+                nextBtn.onclick = () => {
+                    const urlParams = new URL(data.next).searchParams;
+                    const page = urlParams.get("page") || 1;
+                    loadPageFn(page);
+                };
+                paginationDiv.appendChild(nextBtn);
+            }
+
+            container.appendChild(paginationDiv);
+        }
+
+        
+        function getPageFromUrl(next, previous) {
+            if (previous) {
+                return parseInt(new URL(previous).searchParams.get("page")) + 1;
+            } else if (next) {
+                return parseInt(new URL(next).searchParams.get("page")) - 1;
+            }
+            return 1;
+        }
+
+        function loadLatestReviews(page = 1) {
+            fetch(`${baseUrl}?page=${page}`)
+                .then(res => res.json())
+                .then(data => {
+                    renderReviews("latest-reviews", data.results);
+                    renderPagination("latest-reviews", data, loadLatestReviews);
+                });
+        }
+
+     
+        function loadPopularReviews(page = 1) {
+        fetch(`/api/movies/${movieId}/reviews/popular/?movie_id=${movieId}&page=${page}`)
+            .then(res => res.json())
+            .then(data => {
+        
+                if (data.results) {
+                    renderReviews("popular-reviews", data.results);
+                    renderPagination("popular-reviews", data, loadPopularReviews);
+                } else {
+             
+                    renderReviews("popular-reviews", data);
+                }
+            });
+}
+
+       
+        fetch(baseUrl + "summary/")
+            .then(res => res.json())
+            .then(data => {
+                document.querySelector("#critic-score .score-value").textContent = data.critic.avg.toFixed(1);
+                document.querySelector("#critic-score .score-count").textContent = data.critic.count + " Reviews";
+                document.querySelector("#audience-score .score-value").textContent = data.audience.avg.toFixed(1);
+                document.querySelector("#audience-score .score-count").textContent = data.audience.count + " Reviews";
+            });
+
+        
+        fetch(baseUrl + "heatmap/")
+            .then(res => res.json())
+            .then(data => {
+                const ctx = document.getElementById("trendsChart").getContext("2d");
+                new Chart(ctx, {
+                    type: "bar",
+                    data: {
+                        labels: data.map(item => item.date),
+                        datasets: [{ label: "Reviews", data: data.map(item => item.count), backgroundColor: "#00aaff" }]
+                    }
+                });
+            });
+
+     
+        const sctx = document.getElementById("sentimentChart").getContext("2d");
+        new Chart(sctx, {
+            type: "doughnut",
+            data: {
+                labels: ["Positive", "Neutral", "Negative"],
+                datasets: [{ data: [70, 20, 10], backgroundColor: ["#4CAF50", "#FFC107", "#F44336"] }]
+            }
+        });
+
+        
+        loadLatestReviews(1);
+        loadPopularReviews(1);
+
+        const modal = document.getElementById("reviewModal");
+        const openBtn = document.getElementById("openReviewModal");
+        const closeBtn = document.querySelector(".close");
+
+        openBtn.onclick = () => {
+            const token = localStorage.getItem("access");
+            if (!token) {
+                alert("Please login to write a review.");
+                window.location.href = "/login/";
+                return;
+            }
+            fetch(`/api/movies/${movieId}/`, {
+                headers: { "Authorization": `Bearer ${token}` }
+            })
+            .then(res => res.json())
+            .then(movie => {
+                document.getElementById("modalPoster").src = movie.poster_image  || "/static/default_poster.jpg";
+                document.getElementById("modalTitle").textContent = movie.title;
+                document.getElementById("modalYear").textContent = new Date(movie.release_date).getFullYear();
+                modal.classList.remove("hidden");
+            });
+        };
+
+        closeBtn.onclick = () => modal.classList.add("hidden");
+
+        document.getElementById("reviewForm").onsubmit = function(e) {
+            e.preventDefault();
+            const token = localStorage.getItem("access");
+            const reviewText = document.getElementById("reviewText").value;
+            const rating = document.getElementById("rating").value;
+            const isCritic = document.getElementById("isCritic").checked;
+
+            fetch(`/api/movies/${movieId}/reviews/`, {
+                method: "POST",
+                headers: { 
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    review_text: reviewText,
+                    rating: rating,
+                    is_critic: isCritic,
+                    content_type: 7,
+                    object_id: movieId
+                })
+            })
+            .then(res => {
+                if (res.status === 401) {
+                    alert("Please login again.");
+                    window.location.href = "/login/";
+                    return;
+                }
+                return res.json();
+            })
+            .then(data => {
+                if (data.id) {
+                    alert("Review posted successfully!");
+                    modal.classList.add("hidden");
+                    location.reload();
+                } else {
+                    alert("Error: " + JSON.stringify(data));
+                }
+            });
+        };
+    </script>
+{% endblock %}

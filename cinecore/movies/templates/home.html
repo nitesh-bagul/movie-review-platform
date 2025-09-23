@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Home - CineConnect{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'home.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <h1>Welcome to CineConnect 🎬</h1>
+  <p>Discover trending movies, reviews, and insights</p>
+  <button id="explore-btn"><a href="{% url 'movie_page' %}">Explore Movies</a></button>
+</section>
+
+<section class="trending-section">
+  <h2>🔥 Trending Movies</h2>
+  <div class="carousel-wrapper">
+    <button class="carousel-btn left" id="prev-btn">‹</button>
+    <div class="trending-carousel" id="trending-carousel">
+    
+    </div>
+    <button class="carousel-btn right" id="next-btn">›</button>
+  </div>
+</section>
+<section class="features-section">
+    <h2>🔥 What CineConnect Brings for You</h2>
+    <div class="features-grid">
+      <div class="feature-card">
+        <h3>🎬 Movies Made Easy</h3>
+        <p>Posters, trailers, cast profiles & streaming availability.</p>
+      </div>
+      <div class="feature-card">
+        <h3>⭐ Smarter Reviews & Ratings</h3>
+        <p>Critic vs. audience split, trending reviews, mood meter.</p>
+      </div>
+      <div class="feature-card">
+        <h3>🎥 Behind the Scence</h3>
+        <p>Trivia, fun facts & exclusive behind-the-scenes stills.</p>
+      </div>
+      <div class="feature-card">
+        <h3>💡 Fan Power</h3>
+        <p>Fan theories, polls, interactive discussions.</p>
+      </div>
+    </div>
+  </section>
+{% endblock %}
+
+{% block extra_scripts %}
+{{ block.super }}
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const carousel = document.getElementById("trending-carousel");
+  const prevBtn = document.getElementById("prev-btn");
+  const nextBtn = document.getElementById("next-btn");
+  let autoSlideInterval;
+  let currentIndex = 0;
+  let cardWidth = 0;
+  const visibleCards = 4;
+
+  // Fetch trending movies API
+  fetch("/api/movies/trending/")
+    .then(res => res.json())
+    .then(data => {
+      const movies = data.slice(0, 8);
+
+      // Add original 8 cards
+      movies.forEach(movie => {
+        carousel.appendChild(createCard(movie));
+      });
+
+      // Clone all 8 cards for infinite loop effect
+      movies.forEach(movie => {
+        const clone = createCard(movie);
+        clone.classList.add("clone");
+        carousel.appendChild(clone);
+      });
+
+      const cards = carousel.querySelectorAll(".movie-card");
+      cardWidth = cards[0].offsetWidth;
+
+      startAutoSlide();
+    })
+    .catch(err => console.error("Error fetching trending movies:", err));
+
+  function createCard(movie) {
+    const card = document.createElement("div");
+    card.classList.add("movie-card");
+    card.innerHTML = `
+      <img src="${movie.poster_image}" alt="${movie.title}">
+      <div class="movie-info">
+        <h3>${movie.title}</h3>
+        <p>${movie.genres.join(", ")}</p>
+        <span>⭐ ${movie.trending_score}</span>
+      </div>
+    `;
+    return card;
+  }
+
+  function slideNext() {
+    const cards = carousel.querySelectorAll(".movie-card");
+    if (cards.length === 0) return;
+
+    currentIndex++;
+    carousel.style.scrollBehavior = "smooth";
+    carousel.scrollTo({ left: cardWidth * currentIndex });
+
+    // Reset to original set after clones
+    if (currentIndex >= cards.length - visibleCards) {
+      setTimeout(() => {
+        carousel.style.scrollBehavior = "auto";
+        carousel.scrollTo({ left: 0 });
+        currentIndex = 0;
+      }, 500);
+    }
+  }
+
+  function slidePrev() {
+    const cards = carousel.querySelectorAll(".movie-card");
+    if (cards.length === 0) return;
+
+    if (currentIndex === 0) {
+      carousel.style.scrollBehavior = "auto";
+      carousel.scrollTo({
+        left: (cards.length / 2) * cardWidth,
+      });
+      currentIndex = cards.length / 2 - 1;
+    } else {
+      currentIndex--;
+      carousel.style.scrollBehavior = "smooth";
+      carousel.scrollTo({ left: cardWidth * currentIndex });
+    }
+  }
+
+  // Buttons
+  nextBtn.addEventListener("click", slideNext);
+  prevBtn.addEventListener("click", slidePrev);
+
+  // Autoplay
+  function startAutoSlide() {
+    autoSlideInterval = setInterval(slideNext, 3000);
+  }
+  function stopAutoSlide() {
+    clearInterval(autoSlideInterval);
+  }
+
+  // Pause on hover
+  carousel.addEventListener("mouseenter", stopAutoSlide);
+  carousel.addEventListener("mouseleave", startAutoSlide);
+});
+</script>
+{% endblock %}

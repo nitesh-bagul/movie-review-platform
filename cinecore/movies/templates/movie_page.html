@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Movies - CineConnect{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'movie_page.css' %}">
+<style>
+  .no-results {
+    font-size: 18px;
+    color: gray;
+    text-align: center;
+    margin-top: 20px;
+  }
+  #search-banner {
+    display: none;
+    text-align: center;
+    margin: 15px;
+    font-size: 20px;
+    color: #444;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="movies-container">
+
+  
+  <div id="search-banner"></div>
+  
+
+  <section class="trending-section" id="trending-section">
+    <h2>🔥 Trending Movies</h2>
+    <div id="trending-movies" class="movie-grid"></div>
+    <div class="pagination" id="trending-pagination"></div>
+  </section>
+
+  <hr>
+
+
+  <section class="all-movies-section">
+    <h2>🎬 All Movies</h2>
+    <div id="all-movies" class="movie-grid"></div>
+    <div class="pagination" id="all-pagination"></div>
+  </section>
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+{{ block.super }}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const storedResults = localStorage.getItem("searchResults");
+
+    if (storedResults) {
+        const data = JSON.parse(storedResults);
+        document.getElementById("search-banner").style.display = "block";
+        document.getElementById("search-banner").textContent = "🔍 Showing search results";
+
+        // Agar results empty hain to message dikhana
+        renderMovies(data.results || data, "all-movies");
+
+        // Trending section ko hide kar dete hain search ke waqt
+        document.getElementById("trending-section").style.display = "none";
+
+        localStorage.removeItem("searchResults"); // clear after showing
+    } else {
+        // default load (trending + all)
+        loadMovies("/api/movies/", "all-movies", "all-pagination");
+        loadMovies("/api/movies/trending/", "trending-movies", "trending-pagination");
+    }
+});
+
+function renderMovies(movies, containerId) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = "";
+
+    if (!movies || movies.length === 0) {
+        container.innerHTML = `<p class="no-results">❌ No movies found for your search.</p>`;
+        return;
+    }
+
+    movies.forEach(movie => {
+        const card = document.createElement("div");
+        card.className = "movie-card";
+        card.innerHTML = `
+            <a href="/movies/${movie.id}/" class="movie-link">
+                <img src="${movie.poster_image}" alt="${movie.title}">
+                <div class="movie-info">
+                    <h3 class="movie-title">${movie.title}</h3>
+                    <p class="release-date">📅 ${movie.release_date}</p>
+                    <p class="genres">🎭 ${movie.genres.join(", ")}</p>
+                    ${movie.trending_score ? `<span>⭐ ${movie.trending_score}</span>` : ""}
+                </div>
+            </a>
+        `;
+        container.appendChild(card);
+    });
+}
+
+function loadMovies(url, containerId, paginationId) {
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            const container = document.getElementById(containerId);
+            container.innerHTML = "";
+
+            const movies = data.results || data;
+
+            if (!movies || movies.length === 0) {
+                container.innerHTML = `<p class="no-results">❌ No movies found.</p>`;
+                return;
+            }
+
+            movies.forEach(movie => {
+                const card = document.createElement("div");
+                card.className = "movie-card";
+                card.innerHTML = `
+                    <a href="/movies/${movie.id}/" class="movie-link">
+                        <img src="${movie.poster_image}" alt="${movie.title}">
+                        <div class="movie-info">
+                            <h3 class="movie-title">${movie.title}</h3>
+                            <p class="release-date">📅 ${movie.release_date}</p>
+                            <p class="genres">🎭 ${movie.genres.join(", ")}</p>
+                            ${movie.trending_score ? `<span>⭐ ${movie.trending_score}</span>` : ""}
+                        </div>
+                    </a>
+                `;
+                container.appendChild(card);
+            });
+
+            // Pagination links
+            const pagination = document.getElementById(paginationId);
+            pagination.innerHTML = "";
+            if (data.previous) {
+                pagination.innerHTML += `<button onclick="loadMovies('${data.previous}', '${containerId}', '${paginationId}')">⬅ Prev</button>`;
+            }
+            if (data.next) {
+                pagination.innerHTML += `<button onclick="loadMovies('${data.next}', '${containerId}', '${paginationId}')">Next ➡</button>`;
+            }
+        });
+}
+</script>
+{% endblock %}
+</body>
+</html>
